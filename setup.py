@@ -4,7 +4,7 @@ setup(
     name="wafer_viewer",
     version="0.1.0",
     description="A web app for visualizing wafer chip data.",
-    author="Your Name",
+    author="Monish Erode Sridhar",
     packages=find_packages(),
     install_requires=[
         "flask",
