@@ -1,0 +1,639 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wafer Viewer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 125px);
+      grid-template-rows: repeat(10, 125px);
+      gap: 2px;
+    }
+    .cell {
+      width: 100%;
+      height: 100%;
+      background-color: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+    }
+    .cell.active {
+      background-color: #dbeafe;
+      padding: 0;
+    }
+    .cell.empty {
+      background-color: #bfdbfe;
+    }
+    .cell img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    
+    .cell-content {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    /* The "dark shade" overlay */
+    .cell-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        /* MODIFIED: Made the overlay darker */
+        background-color: rgba(30, 41, 59, 0.8); 
+        z-index: 4; /* Sits above content, below icons */
+        transition: opacity 0.2s ease-in-out;
+        opacity: 0; /* Hidden by default */
+        pointer-events: none; /* Clicks pass through when hidden */
+    }
+
+    /* The class that makes the overlay visible */
+    .cell-overlay.visible {
+        opacity: 1;
+        pointer-events: auto; /* Blocks clicks from reaching content below when visible */
+    }
+
+    .icon {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        padding: 4px;
+        border-radius: 4px;
+        background-color: rgba(255, 255, 255, 0.7);
+        z-index: 5; /* Icons are on top of everything */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s;
+    }
+    .icon:hover {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+    .link-icon {
+        top: 4px;
+        left: 4px;
+    }
+    .hide-icon {
+        top: 4px;
+        right: 4px;
+        cursor: pointer;
+    }
+    
+    .tab-input {
+      width: 100%;
+      padding: 9px;
+      border: 1px solid #88c;
+      border-radius: 5px;
+      font-size: inherit;
+    }
+
+    .cell-annotation {
+      background: rgba(255, 255, 255, 0.8);
+      padding: 4px;
+      text-align: center;
+      font-size: 10px;
+      color: #333;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      width: 100%;
+      box-sizing: border-box;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+    }
+    #notification-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .notification {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .notification.success { background-color: #22c55e; }
+    .notification.warning { background-color: #f97316; }
+    .notification.error { background-color: #ef4444; }
+    
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex">
+  <div id="notification-container"></div>
+  <div id="loading-overlay" class="hidden loading-overlay">
+    <div class="flex items-center gap-2 text-lg text-gray-800">
+        <svg class="animate-spin h-6 w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Loading...</span>
+    </div>
+  </div>
+
+  <div class="sidebar bg-white p-6 shadow-lg h-screen flex flex-col gap-4 fixed top-0 left-0 z-20" style="width: 350px;">
+    <button id="addWaferBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300">
+        Add Wafer
+    </button>
+    <div id="tabs" class="tabs flex flex-col gap-2 overflow-y-auto flex-grow"></div>
+  </div>
+
+  <div class="flex-grow" style="margin-left: 350px;">
+    <div class="main-content flex-grow flex flex-col items-center p-6">
+      <div class="controls bg-white p-4 rounded-lg shadow-md w-full flex justify-end items-center gap-4 mb-6 sticky top-6 z-10">
+        <button id="loadCsvBtn" class="bg-indigo-300 hover:bg-indigo-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300" style="display:none">
+          Load CSV
+        </button>
+        <input type="file" id="csvFileInput" class="hidden" accept=".csv" />
+        <button id="loadDataBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-300">
+          Load Data
+        </button>
+        <input type="file" id="fileInput" class="hidden" accept=".pkl" />
+        <button id="downloadDataBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300" style="display:none">
+          Download Data
+        </button>
+        <button id="clearBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300">
+          Clear
+        </button>
+      </div>
+      <h1 id="waferNameDisplay" class="text-3xl font-bold text-gray-800 mb-6">Wafer Viewer</h1>
+      <div id="grid" class="grid bg-white p-4 rounded-lg shadow-lg"></div>
+    </div>
+  </div>
+
+  <script>
+    const grid = document.getElementById('grid');
+    const tabsContainer = document.getElementById('tabs');
+    const addWaferBtn = document.getElementById('addWaferBtn');
+    const waferNameDisplay = document.getElementById('waferNameDisplay');
+    const loadCsvBtn = document.getElementById('loadCsvBtn');
+    const csvFileInput = document.getElementById('csvFileInput');
+    const notificationContainer = document.getElementById('notification-container');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadDataBtn = document.getElementById('loadDataBtn');
+    const fileInput = document.getElementById('fileInput');
+    const downloadDataBtn = document.getElementById('downloadDataBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    let wafers = new Map();
+    let activeWaferId = null;
+    let isDevMode = false;
+
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `<span>${message}</span>`;
+        notificationContainer.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 500);
+        }, 5000);
+    }
+    
+    function showLoading(show) {
+        loadingOverlay.style.display = show ? 'flex' : 'none';
+    }
+
+    async function fetchMode() {
+      const res = await fetch('/mode');
+      const data = await res.json();
+      isDevMode = data.mode === 'dev';
+      if (isDevMode) {
+        downloadDataBtn.style.display = '';
+        loadCsvBtn.style.display = '';
+      }
+    }
+
+    function addWafer(name = 'New Wafer', gridData = [], chipData = {}) {
+        const newId = `wafer-${Date.now()}`;
+        wafers.set(newId, { name, grid: gridData, chip_data: chipData });
+        renderTabs();
+        setActiveWafer(newId);
+    }
+    
+    function setActiveWafer(id) {
+        if (wafers.has(id)) {
+            activeWaferId = id;
+            renderGrid();
+            renderTabs();
+        }
+    }
+
+    function handleRename(id, buttonElement) {
+        const wafer = wafers.get(id);
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = wafer.name;
+        input.classList.add('tab-input');
+        
+        const parentButton = buttonElement.closest('button.tab-button');
+        parentButton.replaceWith(input);
+        
+        input.focus();
+
+        const saveName = () => {
+            const newName = input.value.trim();
+            if (newName !== '' && newName !== wafer.name) {
+                wafer.name = newName;
+                if (id === activeWaferId) {
+                    waferNameDisplay.textContent = newName;
+                }
+            }
+            renderTabs();
+        };
+
+        input.addEventListener('blur', saveName);
+        input.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                saveName();
+            }
+        });
+    }
+
+    function deleteWafer(id) {
+        if (!wafers.has(id)) return;
+
+        showModal('Confirm Deletion', `Are you sure you want to delete the wafer "${wafers.get(id).name}"? This action cannot be undone.`, () => {
+            wafers.delete(id);
+            if (activeWaferId === id) {
+                const remainingWaferIds = [...wafers.keys()];
+                activeWaferId = remainingWaferIds.length > 0 ? remainingWaferIds[0] : null;
+            }
+            renderTabs();
+            renderGrid();
+        });
+    }
+
+    function renderTabs() {
+      tabsContainer.innerHTML = '';
+      wafers.forEach((wafer, id) => {
+        const tabButton = document.createElement('button');
+        tabButton.className = 'tab-button flex items-center justify-between p-3 rounded-lg text-gray-700 hover:bg-gray-100 transition duration-200 w-full text-left';
+        tabButton.dataset.id = id;
+        if (id === activeWaferId) {
+          tabButton.classList.add('bg-blue-100', 'text-blue-800', 'font-semibold');
+        }
+
+        const tabText = document.createElement('span');
+        tabText.className = 'tab-text truncate flex-grow';
+        tabText.textContent = wafer.name;
+        tabButton.appendChild(tabText);
+        
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'flex items-center ml-2';
+
+        const renameButton = document.createElement('button');
+        renameButton.className = 'rename-wafer-btn text-gray-400 hover:text-blue-500 p-1 rounded-md transition duration-200';
+        renameButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>`;
+        renameButton.title = `Rename Wafer: ${wafer.name}`;
+        renameButton.onclick = (e) => { e.stopPropagation(); handleRename(id, tabButton); };
+        controlsContainer.appendChild(renameButton);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-wafer-btn text-gray-400 hover:text-red-500 p-1 rounded-md transition duration-200 ml-1';
+        deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>`;
+        deleteButton.title = `Delete Wafer: ${wafer.name}`;
+        deleteButton.onclick = (e) => { e.stopPropagation(); deleteWafer(id); };
+        controlsContainer.appendChild(deleteButton);
+        
+        tabButton.appendChild(controlsContainer);
+        tabsContainer.appendChild(tabButton);
+      });
+      waferNameDisplay.textContent = (activeWaferId && wafers.has(activeWaferId)) ? wafers.get(activeWaferId).name : 'Wafer Viewer';
+    }
+    
+    tabsContainer.addEventListener('click', (e) => {
+        const targetButton = e.target.closest('.tab-button');
+        if (targetButton && !e.target.closest('.rename-wafer-btn') && !e.target.closest('.delete-wafer-btn')) {
+            setActiveWafer(targetButton.dataset.id);
+        }
+    });
+
+    loadCsvBtn.onclick = () => csvFileInput.click();
+    csvFileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        showLoading(true);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/load-csv', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (data.errors && data.errors.length > 0) {
+                    data.errors.forEach(errorMsg => showNotification(errorMsg, 'warning'));
+                }
+                
+                if (activeWaferId && wafers.has(activeWaferId)) {
+                    const activeWafer = wafers.get(activeWaferId);
+                    activeWafer.grid = data.grid;
+                    activeWafer.chip_data = data.chip_data;
+                    renderGrid();
+                    showNotification('CSV processing complete!', 'success');
+                } else {
+                    const waferName = prompt('Enter a name for the new wafer:');
+                    if (waferName) addWafer(waferName, data.grid, data.chip_data);
+                }
+            } else {
+                showNotification(`Error: ${data.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            showNotification('An error occurred while loading the CSV file.', 'error');
+        } finally {
+            showLoading(false);
+            csvFileInput.value = '';
+        }
+    };
+
+    function renderGrid() {
+      grid.innerHTML = '';
+      if (!activeWaferId || !wafers.has(activeWaferId)) return;
+
+      const activeWafer = wafers.get(activeWaferId);
+      const currentGrid = activeWafer.grid;
+      const currentChipData = activeWafer.chip_data;
+
+      for (let i = 0; i < currentGrid.length; i++) {
+        const val = currentGrid[i];
+        const cell = document.createElement('div');
+        cell.className = 'cell rounded-lg shadow-sm';
+
+        if (val === -1) {
+          cell.classList.add('bg-gray-200', 'border-gray-300');
+        } else if (val === 0) {
+          cell.classList.add('bg-blue-50', 'border-blue-200');
+        } else if (val > 0) {
+          cell.classList.add('active');
+          cell.dataset.id = val;
+          const chip = currentChipData[val];
+
+          if (chip && chip.plot) {
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'cell-content';
+
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${chip.plot}`;
+            img.alt = chip.chip_name;
+            contentContainer.appendChild(img);
+            
+            if (chip.annotation) {
+                const annotation = document.createElement('div');
+                annotation.className = 'cell-annotation font-bold';
+                annotation.textContent = chip.annotation;
+                contentContainer.appendChild(annotation);
+            }
+
+            if (chip.link) {
+              const linkIcon = document.createElement('a');
+              linkIcon.href = chip.link;
+              linkIcon.target = '_blank';
+              linkIcon.className = 'icon link-icon';
+              linkIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="text-indigo-600"><path fill-rule="evenodd" d="M6.354 5.5H4a3 3 0 0 0 0 6h3a3 3 0 0 0 2.83-4H9c-.086 0-.17.01-.25.031A2 2 0 0 1 7 10.5H4a2 2 0 1 1 0-4h1.536l.228-.814A3.001 3.001 0 0 0 6.354 5.5z"/><path d="M9 5.5a3 3 0 0 0-2.83 4h1.098A2 2 0 0 1 9 6.5h3a2 2 0 1 1 0 4h-1.536l-.228.814A3.001 3.001 0 0 0 9 5.5z"/></svg>`;
+              linkIcon.addEventListener('click', (e) => e.stopPropagation());
+              contentContainer.appendChild(linkIcon);
+            }
+            
+            const overlay = document.createElement('div');
+            overlay.className = 'cell-overlay';
+            if (chip.isHidden) {
+                overlay.classList.add('visible');
+            }
+
+            const hideIcon = document.createElement('div');
+            hideIcon.className = 'icon hide-icon';
+            
+            // MODIFIED: Replaced checkbox SVGs with eye and eye-slash SVGs
+            const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-gray-700" viewBox="0 0 16 16"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg>`;
+            const eyeSlashSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-indigo-600" viewBox="0 0 16 16"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg>`;
+            
+            const updateIcon = () => {
+                hideIcon.innerHTML = chip.isHidden ? eyeSlashSVG : eyeOpenSVG;
+                hideIcon.title = chip.isHidden ? 'Show Chip' : 'Hide Chip';
+            };
+            updateIcon();
+
+            hideIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                chip.isHidden = !chip.isHidden;
+                overlay.classList.toggle('visible');
+                updateIcon();
+            });
+            contentContainer.appendChild(hideIcon);
+            
+            cell.appendChild(contentContainer);
+            cell.appendChild(overlay);
+
+          } else if (chip && chip.annotation) {
+            const annotation = document.createElement('div');
+            annotation.className = 'cell-annotation bg-transparent text-gray-800 font-bold';
+            annotation.textContent = chip.annotation;
+            cell.appendChild(annotation);
+          }
+          
+          cell.addEventListener('click', async () => {
+            if (chip && chip.isHidden) return;
+
+            if (isDevMode) {
+              const { chipName, annotation } = await showInputModal('Enter chip data', chip ? { chip_name: chip.chip_name, annotation: chip.annotation } : {});
+              if (chipName) {
+                showLoading(true);
+                try {
+                    const resp = await fetch('/generate-chip', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ cell_id: val, chip_name: chipName, annotation: annotation })
+                    });
+                    const result = await resp.json();
+                    if (result.chip_data) {
+                      wafers.get(activeWaferId).chip_data[val] = result.chip_data;
+                      renderGrid();
+                    } else { showModal('Error', result.error || 'Unknown error'); }
+                } catch (err) { showModal('Error', 'Failed to generate chip.'); } 
+                finally { showLoading(false); }
+              }
+            } else if (chip && chip.plot) {
+              const newWindow = window.open('', '_blank');
+              newWindow.document.write(`<html><head><title>${chip.chip_name}</title><style>body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;margin:40px;font-family:sans-serif;}img{max-width:90%;height:auto;}</style></head><body><h2>${chip.chip_name}</h2><img src="data:image/png;base64,${chip.plot}" alt="Plot" style="max-width:100%;"><br/><a href="${chip.link}" target="_blank">Dashboard Link</a></body></html>`);
+              newWindow.document.close();
+            }
+          });
+        }
+        grid.appendChild(cell);
+      }
+    }
+
+    function showInputModal(title, initialData = {}) {
+        return new Promise(resolve => {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50';
+            modal.innerHTML = `<div class="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full"><h3 class="text-xl font-bold mb-4">${title}</h3><div class="mb-4"><label for="chip-name-input" class="block text-gray-700">Chip Name:</label><input id="chip-name-input" type="text" value="${initialData.chip_name || ''}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"></div><div class="mb-6"><label for="annotation-input" class="block text-gray-700">Annotation:</label><input id="annotation-input" type="text" value="${initialData.annotation || ''}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"></div><div class="flex justify-end"><button id="modal-submit" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300 mr-2">Submit</button><button id="modal-cancel" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition duration-300">Cancel</button></div></div>`;
+            document.body.appendChild(modal);
+
+            const submitBtn = document.getElementById('modal-submit');
+            const cancelBtn = document.getElementById('modal-cancel');
+            const chipNameInput = document.getElementById('chip-name-input');
+            const annotationInput = document.getElementById('annotation-input');
+
+            submitBtn.addEventListener('click', () => {
+                modal.remove();
+                resolve({ chipName: chipNameInput.value.trim(), annotation: annotationInput.value.trim() });
+            });
+            cancelBtn.addEventListener('click', () => {
+                modal.remove();
+                resolve({ chipName: null, annotation: null });
+            });
+        });
+    }
+
+    function showModal(title, message, onConfirm = null) {
+      const messageBox = document.createElement('div');
+      messageBox.className = 'fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50';
+      
+      let buttonsHtml = `<button id="modal-ok" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">OK</button>`;
+      if (onConfirm) {
+          buttonsHtml = `<button id="modal-confirm" class="bg-red-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-600 transition duration-300 mr-2">Confirm</button> <button id="modal-cancel" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition duration-300">Cancel</button>`;
+      }
+
+      messageBox.innerHTML = `<div class="bg-white p-8 rounded-lg shadow-xl max-w-sm w-full"><h3 class="text-xl font-bold mb-4">${title}</h3><p class="mb-6 text-gray-700">${message}</p><div class="flex justify-end">${buttonsHtml}</div></div>`;
+      document.body.appendChild(messageBox);
+
+      const okBtn = document.getElementById('modal-ok');
+      const confirmBtn = document.getElementById('modal-confirm');
+      const cancelBtn = document.getElementById('modal-cancel');
+
+      if (onConfirm) {
+          confirmBtn.addEventListener('click', () => { onConfirm(); messageBox.remove(); });
+          cancelBtn.addEventListener('click', () => messageBox.remove());
+      } else {
+          okBtn.addEventListener('click', () => messageBox.remove());
+      }
+    }
+    
+    // --- Event Listeners ---
+    addWaferBtn.onclick = () => {
+      const waferName = prompt('Enter a name for the new wafer:');
+      if (waferName) {
+        fetchDefaultData().then(data => addWafer(waferName, data.grid, data.chip_data));
+      }
+    };
+
+    loadDataBtn.onclick = () => fileInput.click();
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      showLoading(true);
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/load-data', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.grid && data.chip_data) {
+            const waferName = file.name.replace(/\.pkl$/, '').replace(/_/g, ' ');
+            addWafer(waferName, data.grid, data.chip_data);
+        } else {
+          showModal('Error', `Failed to load data: ${data.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        showModal('Error', 'An error occurred while loading the data.');
+      } finally {
+        showLoading(false);
+        fileInput.value = '';
+      }
+    };
+
+    downloadDataBtn.onclick = async () => {
+      if (!isDevMode || !activeWaferId) return;
+      const activeWafer = wafers.get(activeWaferId);
+      const res = await fetch('/download-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grid: activeWafer.grid, chip_data: activeWafer.chip_data, wafer_name: activeWafer.name })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${activeWafer.name.replace(/\s/g, '_')}.pkl`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        showModal('Error', 'Failed to download data');
+      }
+    };
+
+    clearBtn.onclick = async () => {
+      if (!activeWaferId) return;
+      const activeWafer = wafers.get(activeWaferId);
+      showModal('Confirm Clear', `Are you sure you want to clear all chips from "${activeWafer.name}"?`, async () => {
+        const defaultData = await fetchDefaultData();
+        activeWafer.grid = defaultData.grid;
+        activeWafer.chip_data = defaultData.chip_data;
+        renderGrid();
+      });
+    };
+    
+    async function fetchDefaultData() {
+      const res = await fetch('/default-data');
+      return res.json();
+    }
+
+    (async () => {
+      showLoading(true);
+      await fetchMode();
+      const defaultData = await fetchDefaultData();
+      addWafer('Default Wafer', defaultData.grid, defaultData.chip_data);
+      showLoading(false);
+    })();
+  </script>
+</body>
+</html>

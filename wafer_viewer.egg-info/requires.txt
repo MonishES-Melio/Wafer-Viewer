@@ -1,0 +1,14 @@
+flask
+pandas
+matplotlib
+numpy
+seaborn
+
+[dev]
+flask
+matplotlib
+numpy
+seaborn
+pydantic
+scipy
+melt_data_layer[all]@ git+https://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@github.com/meliolabs/Melt_Dal.git@develop#egg=melt_data_layer

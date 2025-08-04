@@ -1,0 +1,7 @@
+pyproject.toml
+setup.py
+wafer_viewer.egg-info/PKG-INFO
+wafer_viewer.egg-info/SOURCES.txt
+wafer_viewer.egg-info/dependency_links.txt
+wafer_viewer.egg-info/requires.txt
+wafer_viewer.egg-info/top_level.txt
