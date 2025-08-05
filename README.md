@@ -41,7 +41,7 @@ Installation
 Follow these instructions to set up and run the Wafer Viewer on your local machine.
 
 Prerequisites
-Python 3.7+
+Python 3.11+
 
 pip (Python package installer)
 
@@ -67,10 +67,8 @@ pandas
 matplotlib
 numpy
 seaborn
-# Add the following line if melt_data_layer is available on PyPI
-# melt_data_layer
+melt_data_layer
 
-Note: The melt_data_layer library appears to be a custom or internal dependency. Ensure it is installed in your environment. If it's a local package, you may need to install it using pip install -e . from its source directory.
 
 4. Install Dependencies
 Install all the required packages using pip:
