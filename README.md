@@ -50,14 +50,20 @@ git clone <your-repository-url>
 cd <your-repository-directory>
 
 2. Set Up a Virtual Environment (Recommended)
-# Create a virtual environment
+## Create a virtual environment
+```
 python -m venv venv
+```
 
-# Activate the virtual environment
-# On Windows
+## Activate the virtual environment
+## On Windows
+```
 venv\Scripts\activate
-# On macOS/Linux
+```
+## On macOS/Linux
+```
 source venv/bin/activate
+```
 
 3. Create requirements.txt
 Create a file named requirements.txt in the root of your project directory and add the following dependencies:
@@ -72,33 +78,33 @@ melt_data_layer
 
 4. Install Dependencies
 Install all the required packages using pip:
-
+```
 pip install -r requirements.txt
-
+```
 Running the Application
 Standard Mode
 To run the application in standard user mode, simply execute the backend.py script:
-
+```
 python backend.py
-
+```
 The application will be available at http://127.0.0.1:5000.
 
 Developer Mode
 To enable developer mode and unlock advanced features, set the WAFER_MODE environment variable to dev before running the application.
 
 On macOS/Linux:
-
+```
 export WAFER_MODE=dev
 python backend.py
-
+```
 On Windows (Command Prompt):
-
+```
 set WAFER_MODE=dev
 python backend.py
-
+```
 On Windows (PowerShell):
-
+```
 $env:WAFER_MODE="dev"
 python backend.py
-
+```
 You will now see additional buttons in the UI for generating chips and downloading wafer data. Logs in the terminal will also be more verbose.
