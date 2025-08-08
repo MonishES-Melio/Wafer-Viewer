@@ -30,7 +30,13 @@
       cursor: pointer;
       overflow: hidden;
       position: relative;
+      box-sizing: border-box; /* Ensures border is included in the element's dimensions */
     }
+    /* Style for the highlighted cell */
+    .cell.highlighted {
+        border: 2px solid #ef4444; /* Bright red border */
+    }
+
     .cell.active {
       background-color: #dbeafe;
       padding: 0;
@@ -54,25 +60,22 @@
       justify-content: space-between;
     }
     
-    /* The "dark shade" overlay */
     .cell-overlay {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        /* MODIFIED: Made the overlay darker */
         background-color: rgba(30, 41, 59, 0.8); 
-        z-index: 4; /* Sits above content, below icons */
+        z-index: 4;
         transition: opacity 0.2s ease-in-out;
-        opacity: 0; /* Hidden by default */
-        pointer-events: none; /* Clicks pass through when hidden */
+        opacity: 0;
+        pointer-events: none;
     }
 
-    /* The class that makes the overlay visible */
     .cell-overlay.visible {
         opacity: 1;
-        pointer-events: auto; /* Blocks clicks from reaching content below when visible */
+        pointer-events: auto;
     }
 
     .icon {
@@ -82,7 +85,7 @@
         padding: 4px;
         border-radius: 4px;
         background-color: rgba(255, 255, 255, 0.7);
-        z-index: 5; /* Icons are on top of everything */
+        z-index: 5;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -98,6 +101,11 @@
     .hide-icon {
         top: 4px;
         right: 4px;
+        cursor: pointer;
+    }
+    .highlight-icon {
+        bottom: 4px;
+        left: 4px;
         cursor: pointer;
     }
     
@@ -177,6 +185,25 @@
         Add Wafer
     </button>
     <div id="tabs" class="tabs flex flex-col gap-2 overflow-y-auto flex-grow"></div>
+    
+    <!-- NEW: Legend Section -->
+    <div id="legend" class="mt-auto pt-4 border-t-2 border-gray-200">
+        <h3 class="text-md font-semibold text-gray-700 mb-3">Plot Legend</h3>
+        <div class="flex flex-col gap-2 text-sm">
+            <div class="flex items-center gap-3">
+                <span class="w-4 h-4 rounded-full" style="background-color: #00FFFF;"></span>
+                <span>tp_linear</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="w-4 h-4 rounded-full" style="background-color: #FF00FF;"></span>
+                <span>tp_twin_parabolic</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="w-4 h-4 rounded-full" style="background-color: #39FF14;"></span>
+                <span>tp_isolated_parabolic</span>
+            </div>
+        </div>
+    </div>
   </div>
 
   <div class="flex-grow" style="margin-left: 350px;">
@@ -412,6 +439,11 @@
           cell.dataset.id = val;
           const chip = currentChipData[val];
 
+          // Apply highlight class if chip is highlighted
+          if (chip && chip.isHighlighted) {
+              cell.classList.add('highlighted');
+          }
+
           if (chip && chip.plot) {
             const contentContainer = document.createElement('div');
             contentContainer.className = 'cell-content';
@@ -447,24 +479,36 @@
             const hideIcon = document.createElement('div');
             hideIcon.className = 'icon hide-icon';
             
-            // MODIFIED: Replaced checkbox SVGs with eye and eye-slash SVGs
             const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-gray-700" viewBox="0 0 16 16"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg>`;
             const eyeSlashSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-indigo-600" viewBox="0 0 16 16"><path d="m10.79 12.912-1.614-1.615a3.5 3.5 0 0 1-4.474-4.474l-2.06-2.06C.938 6.278 0 8 0 8s3 5.5 8 5.5a7.029 7.029 0 0 0 2.79-.588zM5.21 3.088A7.028 7.028 0 0 1 8 2.5c5 0 8 5.5 8 5.5s-.939 1.721-2.641 3.238l-2.062-2.062a3.5 3.5 0 0 0-4.474-4.474L5.21 3.089z"/><path d="M5.525 7.646a2.5 2.5 0 0 0 2.829 2.829l-2.83-2.829zm4.95.708-2.829-2.83a2.5 2.5 0 0 1 2.829 2.829zm3.171 6-12-12 .708-.708 12 12-.708.708z"/></svg>`;
             
-            const updateIcon = () => {
+            const updateHideIcon = () => {
                 hideIcon.innerHTML = chip.isHidden ? eyeSlashSVG : eyeOpenSVG;
                 hideIcon.title = chip.isHidden ? 'Show Chip' : 'Hide Chip';
             };
-            updateIcon();
+            updateHideIcon();
 
             hideIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
                 chip.isHidden = !chip.isHidden;
                 overlay.classList.toggle('visible');
-                updateIcon();
+                updateHideIcon();
             });
             contentContainer.appendChild(hideIcon);
             
+            // Highlight Feature
+            const highlightIcon = document.createElement('div');
+            highlightIcon.className = 'icon highlight-icon';
+            highlightIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-blue-500" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11z"/></svg>`;
+            highlightIcon.title = 'Highlight Cell';
+
+            highlightIcon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                chip.isHighlighted = !chip.isHighlighted;
+                cell.classList.toggle('highlighted');
+            });
+            contentContainer.appendChild(highlightIcon);
+
             cell.appendChild(contentContainer);
             cell.appendChild(overlay);
 
